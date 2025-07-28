@@ -9,28 +9,84 @@ import { Filter } from "@/components/Filter";
 
 import { FilterStatus } from "@/types/FilterStatus";
 import { Item } from "~/src/components/Item";
+import { itemsStorage, ItemStorage } from "@/storage/itemsStorage"
 
 const FILTER_STATUS: FilterStatus[] = [FilterStatus.PENDING, FilterStatus.DONE];
 
 export function Home() {
 
-  const [items, setItems] = useState<any>([]);
   const [filter, setFilter] = useState(FilterStatus.PENDING);
   const [description, setDescription] = useState("");
+  const [items, setItems] = useState<ItemStorage[]>([]);
 
-  function handleAdd(){
+  async function handleAdd(){
     if(!description.trim()){
       return Alert.alert("Adicionar", "Informe a descrição para adicionar.")
-    }
+    };
 
     const newItem = {
       id: Math.random().toString(36).substring(2),
       description,
       status: FilterStatus.PENDING,
+    };
+
+    await itemsStorage.add(newItem);
+    await itemsByStatus();
+    Alert.alert("Adicionado", `Adicionado ${description}`);
+    setDescription("");
+    setFilter(FilterStatus.PENDING);
+  }
+
+  async function itemsByStatus(){
+    try {
+      const response = await itemsStorage.getByStatus(filter);
+      setItems(response);
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Erro", "Não foi possível filtrar os itens.");
     }
   }
 
-  useEffect(() => {}, [])
+  async function handleRemove(id: string){
+    try {
+      await itemsStorage.remove(id);
+      await itemsByStatus();
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Erro", "Não foi possível remover todos os itens.");
+    }
+  }
+
+  function handleClear(){
+    Alert.alert("Limpar", "Deseja remover todos?", [
+      { text: "Não", style: "cancel" },
+      { text: "Sim", onPress: () => onClear()}
+    ]);
+  }
+
+  async function onClear() {
+    try {
+      await itemsStorage.clear();
+      setItems([]);
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Erro", "Não foi possível limpar os itens.");
+    }
+  }
+
+  async function handleToggleItemStatus(id: string){
+    try {
+      await itemsStorage.toggleStatus(id);
+      await itemsByStatus();
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Erro", "Não foi possível atualizar o status.");
+    }
+  }
+
+  useEffect(() => {
+    itemsByStatus();
+  }, [filter]);
 
   return (
     <View className="flex-1 items-center bg-[#d0d2d8] pt-[62]">
@@ -40,6 +96,7 @@ export function Home() {
         <Input 
           placeholder="O que você precisa comprar?" 
           onChangeText={setDescription}
+          value={description}
         />
         <Button 
           title="Adicionar" 
@@ -57,7 +114,10 @@ export function Home() {
               onPress={() => setFilter(status)}
             />
           ))}
-          <TouchableOpacity className="ml-auto">
+          <TouchableOpacity 
+            className="ml-auto"
+            onPress={handleClear}
+          >
             <Text className="text-[12px] font-semibold text-[#828282]">
               Limpar
             </Text>
@@ -70,8 +130,8 @@ export function Home() {
           renderItem={({ item }) => (
             <Item
               data={item}
-              onStatus={() => console.log("mudar o status")}
-              onRemove={() => console.log("remover")}
+              onStatus={() => handleToggleItemStatus(item.id)}
+              onRemove={() => handleRemove(item.id)}
             />  
           )}
           showsVerticalScrollIndicator={false}
